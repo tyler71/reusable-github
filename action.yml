@@ -1,0 +1,59 @@
+name: "Setup Bitwarden Cli"
+description: "Setup Bitwarden cli (bw) and login"
+
+inputs:
+  bw-clientid:
+    required: true
+  bw-clientsecret:
+    required: true
+  bw-password:
+    required: true
+  bw-host:
+    required: false
+outputs:
+  session-key:
+    description: "Bitwarden session id returned from 'bw unlock'"
+    value: ${{ steps.bw-login.outputs.session-key }}
+    
+runs: 
+  using: "composite"
+  steps:
+  - name: Set Binary Path
+    shell: bash
+    run: |
+
+      
+  - name: Get Bitwarden Cli Binary
+    env:
+      BW_DOWNLOAD_URL: "https://github.com/bitwarden/clients/releases/download/cli-v2023.5.0/bw-linux-2023.5.0.zip"
+    shell: bash
+    run: |
+      tmp_dir="$(mktemp --directory ${{ runner.temp }}/bw.XXXXXXXX)"
+      bw_bin_dir="$(mktemp --directory ${{ runner.temp }}/bwcli.XXXXXXXX)"
+      
+      echo "$bw_bin_dir" >> "$GITHUB_PATH"
+      
+      mkdir -p "$bw_bin_dir"
+      
+      if [ ! -f "$bw_bin_dir/bw" ]; then
+        wget --quiet ${{ env.BW_DOWNLOAD_URL }} -O "$tmp_dir"/bw-cli.zip
+        unzip "$tmp_dir"/bw-cli.zip bw
+        mv bw "$bw_bin_dir/bw"
+        rm -r "$tmp_dir"
+      fi
+
+  - name: Bitwarden Login
+    id: bw-login
+    shell: bash
+    env:
+      BW_CLIENTID: ${{ inputs.bw-clientid }}
+      BW_CLIENTSECRET: ${{ inputs.bw-clientsecret }}
+      BW_HOST: ${{ inputs.bw-host }}
+      BW_PASSWORD: ${{ inputs.bw-password }}
+    run: |
+      if [ ! -z "${BW_HOST+x}" ]; then
+        bw config server "$BW_HOST"
+      fi
+      bw login --apikey
+      SESSION_KEY="$(bw unlock "$BW_PASSWORD" --raw)"
+      echo "session-key=$SESSION_KEY" >> $GITHUB_OUTPUT
